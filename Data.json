@@ -14,8 +14,8 @@
 
   {
     "name":"Ridhi Jaiswal"
-    "githsubUsername":"RidhiJaiswal"
-    "Profile_imgae_Url":"https://avatars.githubusercontent.com/u/87558815?v=4"
+    "githsubUsername"c: "RidhiJaiswal"
+    "Profile_imgae_Url" : "https://avatars.githubusercontent.com/u/87558815?v=4"
     
   },
 
@@ -32,21 +32,21 @@
     
   } 
   {
-    "name":"Mahato Rakesh"
-    "githsubUsername":"mahatorakesh"
-    "Profile_imgae_Url":"https://avatars.githubusercontent.com/u/69909347?v=4"
+    "name" : "Mahato Rakesh"
+    "githsubUsername" : "mahatorakesh"
+    "Profile_imgae_Url" : "https://avatars.githubusercontent.com/u/69909347?v=4"
 
   },
   {
-    "name":" "
-    "githsubUsername":" "
-    "Profile_imgae_Url":" "
+    "name" : " "
+    "githsubUsername" : " "
+    "Profile_imgae_Url" : " "
 
   },
   {
-    "name":" "
-    "githsubUsername":" "
-    "Profile_imgae_Url":" "
+    "name" : " "
+    "githsubUsername" : " "
+    "Profile_imgae_Url" : " "
 
 },
  ]
