@@ -1,0 +1,80 @@
+name: Auto Label and Triage Issues
+
+on:
+  issues:
+    types: [opened]
+  pull_request:
+    types: [opened]
+
+jobs:
+  triage:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Auto-label and welcome
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          IS_PR: ${{ github.event.pull_request != '' }}
+          NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
+          AUTHOR: ${{ github.event.issue.user.login || github.event.pull_request.user.login }}
+          TITLE: ${{ github.event.issue.title || github.event.pull_request.title }}
+          BODY: ${{ github.event.issue.body || github.event.pull_request.body }}
+        run: |
+          REPO="${{ github.repository }}"
+          LABELS="[]"
+
+          # Auto-detect labels from title
+          TITLE_LOWER=$(echo "$TITLE" | tr '[:upper:]' '[:lower:]')
+
+          if echo "$TITLE_LOWER" | grep -qE "bug|error|fix|broken|crash"; then
+            LABELS='["bug","needs-triage"]'
+          elif echo "$TITLE_LOWER" | grep -qE "feature|idea|request|suggest"; then
+            LABELS='["enhancement"]'
+          elif echo "$TITLE_LOWER" | grep -qE "docs|documentation|readme|typo"; then
+            LABELS='["documentation"]'
+          elif echo "$TITLE_LOWER" | grep -qE "question|help|how to|support"; then
+            LABELS='["question","help wanted"]'
+          fi
+
+          # Apply labels if detected
+          if [ "$LABELS" != "[]" ]; then
+            curl -s -X POST \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Accept: application/vnd.github.v3+json" \
+              -d "{\"labels\": $LABELS}" \
+              "https://api.github.com/repos/$REPO/issues/$NUMBER/labels"
+          fi
+
+          # Check if first-time contributor
+          CONTRIBUTOR_COUNT=$(curl -s \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github.v3+json" \
+            "https://api.github.com/repos/$REPO/issues?creator=$AUTHOR&state=all&per_page=5" \
+            | python3 -c "import sys,json; print(len(json.load(sys.stdin)))" 2>/dev/null || echo "0")
+
+          if [ "$CONTRIBUTOR_COUNT" -le 1 ]; then
+            # First-time contributor -- post welcome
+            WELCOME="Welcome to **$(echo $REPO | cut -d/ -f2)**, @$AUTHOR! Thanks for your first contribution here.
+
+          A maintainer will review this shortly. If you have questions, feel free to ask in our [Discord](https://discord.gg/wXFWgsAuzR).
+
+          ---
+          *Automated welcome*"
+
+            WELCOME_JSON=$(echo "$WELCOME" | jq -Rs .)
+
+            curl -s -X POST \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Accept: application/vnd.github.v3+json" \
+              -d "{\"body\": $WELCOME_JSON}" \
+              "https://api.github.com/repos/$REPO/issues/$NUMBER/comments"
+
+            # Add first-timer label
+            curl -s -X POST \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Accept: application/vnd.github.v3+json" \
+              -d '{"labels":["first-timer"]}' \
+              "https://api.github.com/repos/$REPO/issues/$NUMBER/labels"
+          fi

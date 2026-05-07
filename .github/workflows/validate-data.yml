@@ -1,0 +1,82 @@
+name: Validate Member Data
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+    paths:
+      - 'Data.json'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Checkout PR
+        uses: actions/checkout@v4
+
+      - name: Validate Data.json
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          ERRORS=""
+
+          # Check if Data.json is valid JSON
+          if ! python3 -c "import json; json.load(open('Data.json'))" 2>/dev/null; then
+            ERRORS="$ERRORS\n- Data.json is not valid JSON. Please check for syntax errors (missing commas, brackets, quotes)."
+          else
+            # Check for duplicate entries
+            DUPES=$(python3 -c "
+          import json
+          with open('Data.json') as f:
+              data = json.load(f)
+          if isinstance(data, list):
+              names = [m.get('github','').lower() for m in data if isinstance(m, dict)]
+              seen = set()
+              dupes = []
+              for n in names:
+                  if n in seen:
+                      dupes.append(n)
+                  seen.add(n)
+              if dupes:
+                  print(','.join(dupes))
+          ")
+
+            if [ -n "$DUPES" ]; then
+              ERRORS="$ERRORS\n- Duplicate entries found: $DUPES"
+            fi
+
+            # Check required fields
+            MISSING=$(python3 -c "
+          import json
+          with open('Data.json') as f:
+              data = json.load(f)
+          if isinstance(data, list):
+              for i, m in enumerate(data):
+                  if isinstance(m, dict):
+                      for field in ['name', 'github']:
+                          if not m.get(field):
+                              print(f'Entry {i+1} missing: {field}')
+          ")
+
+            if [ -n "$MISSING" ]; then
+              ERRORS="$ERRORS\n- Missing required fields:\n$(echo "$MISSING" | sed 's/^/  - /')"
+            fi
+          fi
+
+          if [ -n "$ERRORS" ]; then
+            COMMENT="## Validation Failed\n\nPlease fix the following issues:\n$ERRORS\n\n---\n*Automated validation*"
+            COMMENT_JSON=$(echo -e "$COMMENT" | jq -Rs .)
+
+            curl -s -X POST \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Accept: application/vnd.github.v3+json" \
+              -d "{\"body\": $COMMENT_JSON}" \
+              "https://api.github.com/repos/${{ github.repository }}/issues/$PR_NUMBER/comments"
+
+            echo "Validation failed"
+            exit 1
+          else
+            echo "Validation passed"
+          fi

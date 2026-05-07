@@ -1,0 +1,60 @@
+name: Auto Welcome New Member
+
+on:
+  pull_request:
+    types: [opened]
+    paths:
+      - 'Data.json'
+      - 'README.md'
+
+jobs:
+  welcome:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      issues: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Welcome new member
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          BODY=$(cat <<'EOF'
+          ## Welcome, @PR_AUTHOR_PLACEHOLDER
+
+          Thanks for adding yourself to the Jaidevstudio member directory.
+
+          **Checklist for maintainers:**
+
+          - [ ] PR author is a member of the Jaidevstudio organization
+          - [ ] Entry is added correctly to Data.json (valid JSON)
+          - [ ] No duplicate entries
+          - [ ] PR does not modify other members' entries
+
+          A maintainer will review and merge your PR shortly.
+
+          ---
+
+          *Automated by Jaidevstudio Member Bot*
+          EOF
+          )
+
+          BODY="${BODY//PR_AUTHOR_PLACEHOLDER/$PR_AUTHOR}"
+          BODY_JSON=$(echo "$BODY" | jq -Rs .)
+
+          curl -s -X POST \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github.v3+json" \
+            -d "{\"body\": $BODY_JSON}" \
+            "https://api.github.com/repos/${{ github.repository }}/issues/$PR_NUMBER/comments"
+
+          # Add label
+          curl -s -X POST \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github.v3+json" \
+            -d '{"labels":["new-member"]}' \
+            "https://api.github.com/repos/${{ github.repository }}/issues/$PR_NUMBER/labels"
